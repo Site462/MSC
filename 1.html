@@ -1,0 +1,199 @@
+// Données des produits d'investissement
+const produits = {
+    1: {
+        nom: "Msc-meraviglia",
+        dailyRevenue: 400,
+        cycleDuration: 35,
+        totalRevenue: 14000,
+        price: 10000,
+        limit: 1,
+        image: "https://image.noelshack.com/fichiers/2025/13/7/1743294919-img-20250328-wa0034.jpg"
+    },
+    2: {
+        nom: "Msc-meraviglia",
+        dailyRevenue: 780,
+        cycleDuration: 40,
+        totalRevenue: 31200,
+        price: 25000,
+        limit: 2,
+        image: "https://image.noelshack.com/fichiers/2025/13/7/1743358689-msc-world-europa-mainden-cruise-news.jpg"
+    },
+    3: {
+        nom: "Msc-meraviglia",
+        dailyRevenue: 1460,
+        cycleDuration: 46,
+        totalRevenue: 67160,
+        price: 50000,
+        limit: 2,
+        image: "https://image.noelshack.com/fichiers/2025/13/7/1743359205-msc-world-europa-1170x772.jpg"
+    },
+    4: {
+        nom: "Msc-meraviglia",
+        dailyRevenue: 3200,
+        cycleDuration: 48,
+        totalRevenue: 153600,
+        price: 100000,
+        limit: 2,
+        image: "https://image.noelshack.com/fichiers/2025/13/7/1743359580-img-9918.jpeg"
+    },
+    5: {
+        nom: "Msc-meraviglia",
+        dailyRevenue: 5800,
+        cycleDuration: 50,
+        totalRevenue: 290000,
+        price: 200000,
+        limit: 2,
+        image: "https://image.noelshack.com/fichiers/2025/13/7/1743360080-msc-world-europa-msc-cruises-18910681.jpg"
+    },
+    6: {
+        nom: "Msc-meraviglia",
+        dailyRevenue: 13600,
+        cycleDuration: 55,
+        totalRevenue: 748000,
+        price: 500000,
+        limit: 4,
+        image: "https://image.noelshack.com/fichiers/2025/13/7/1743360479-13-4c1e146a6be84.jpg"
+    },
+    7: {
+        nom: "Msc-bugatti",
+        dailyRevenue: 25000,
+        cycleDuration: 62,
+        totalRevenue: 1550000,
+        price: 1000000,
+        limit: 4,
+        image: "https://image.noelshack.com/fichiers/2025/13/7/1743360963-img-20250329-wa0021.jpg"
+    }
+};
+
+// Fonction pour investir dans un produit
+function investProduct(productId, prix) {
+    // Vérifier si l'utilisateur est connecté
+    if (!isUserLoggedIn()) {
+        showLoginPrompt();
+        return;
+    }
+    
+    // Vérifier si l'utilisateur a déjà atteint sa limite d'achat pour ce produit
+    const achatsActuels = getUserPurchaseCount(productId);
+    const limiteAchats = produits[productId].limit;
+    
+    if (achatsActuels >= limiteAchats) {
+        showNotification("Vous avez atteint la limite d'achat pour ce produit", "error");
+        return;
+    }
+    
+    // Vérifier si l'utilisateur a suffisamment de solde
+    const soldeActuel = getUserBalance();
+    if (soldeActuel < prix) {
+        showNotification("Solde insuffisant pour cet investissement", "error");
+        return;
+    }
+    
+    // Procéder à l'achat
+    processInvestment(productId, prix);
+}
+
+// Fonction pour traiter un investissement
+function processInvestment(productId, prix) {
+    // Réduire le solde de l'utilisateur
+    updateUserBalance(-prix);
+    
+    // Ajouter le produit au portefeuille de l'utilisateur
+    addToUserPortfolio(productId);
+    
+    // Mettre à jour le compteur d'achats pour ce produit
+    incrementUserPurchaseCount(productId);
+    
+    // Mettre à jour l'affichage des limites d'achat
+    updatePurchaseLimits();
+    
+    // Afficher une notification de succès
+    showNotification("Félicitations! Votre investissement a été réalisé avec succès", "success");
+    
+    // Démarrer le calcul des revenus quotidiens
+    startDailyRevenueCalculation(productId);
+}
+
+// Fonction pour afficher une notification
+function showNotification(message, type) {
+    const notificationElement = document.querySelector('.notification');
+    notificationElement.textContent = message;
+    notificationElement.className = 'notification ' + type;
+    notificationElement.style.display = 'block';
+    
+    // Masquer la notification après quelques secondes
+    setTimeout(() => {
+        notificationElement.style.display = 'none';
+    }, 5000);
+}
+
+// Fonction pour vérifier si l'utilisateur est connecté
+function isUserLoggedIn() {
+    // À implémenter selon votre système d'authentification
+    return localStorage.getItem('userToken') !== null;
+}
+
+// Fonction pour montrer le formulaire de connexion
+function showLoginPrompt() {
+    // À implémenter selon votre interface
+    showNotification("Veuillez vous connecter pour investir", "info");
+}
+
+// Fonction pour obtenir le solde de l'utilisateur
+function getUserBalance() {
+    // À implémenter selon votre système de gestion des utilisateurs
+    return parseFloat(localStorage.getItem('userBalance') || '0');
+}
+
+// Fonction pour mettre à jour le solde de l'utilisateur
+function updateUserBalance(amount) {
+    const currentBalance = getUserBalance();
+    localStorage.setItem('userBalance', (currentBalance + amount).toString());
+}
+
+// Fonction pour ajouter un produit au portefeuille de l'utilisateur
+function addToUserPortfolio(productId) {
+    let portfolio = JSON.parse(localStorage.getItem('userPortfolio') || '[]');
+    const timestamp = Date.now();
+    
+    portfolio.push({
+        id: productId,
+        purchaseDate: timestamp,
+        endDate: timestamp + (produits[productId].cycleDuration * 24 * 60 * 60 * 1000)
+    });
+    
+    localStorage.setItem('userPortfolio', JSON.stringify(portfolio));
+}
+
+// Fonction pour obtenir le nombre d'achats de l'utilisateur pour un produit
+function getUserPurchaseCount(productId) {
+    const portfolio = JSON.parse(localStorage.getItem('userPortfolio') || '[]');
+    return portfolio.filter(item => item.id === productId).length;
+}
+
+// Fonction pour incrémenter le compteur d'achats pour un produit
+function incrementUserPurchaseCount(productId) {
+    // Cette fonctionnalité est déjà gérée par addToUserPortfolio
+}
+
+// Fonction pour mettre à jour l'affichage des limites d'achat
+function updatePurchaseLimits() {
+    // Pour chaque produit
+    for (const productId in produits) {
+        const limitElement = document.getElementById(`purchaseLimit${productId}`);
+        if (limitElement) {
+            const purchased = getUserPurchaseCount(productId);
+            const limit = produits[productId].limit;
+            limitElement.textContent = `${purchased}/${limit}`;
+        }
+    }
+}
+
+// Fonction pour démarrer le calcul des revenus quotidiens
+function startDailyRevenueCalculation(productId) {
+    // Dans une application réelle, cette logique serait généralement gérée côté serveur
+    console.log(`Revenus quotidiens démarrés pour le produit ${productId}`);
+}
+
+// Initialiser l'affichage des limites d'achat au chargement de la page
+document.addEventListener('DOMContentLoaded', updatePurchaseLimits);
