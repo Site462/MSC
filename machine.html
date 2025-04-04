@@ -217,8 +217,7 @@ body {
 
     <div class="notification"></div>
     
-    
-     <!-- Navigation avec icônes Font Awesome -->
+    <!-- Navigation avec icônes Font Awesome -->
 <div class="navigation">
     <a href="accueil.html" class="nav-item active">
         <div class="nav-icon"><i class="fas fa-home"></i></div>
@@ -237,7 +236,8 @@ body {
         <div>Profil</div>
     </a>
 </div>
-    
+
+         
    <script type="module">
     // Import des modules Firebase nécessaires
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
@@ -249,70 +249,70 @@ import { getStorage } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-s
  * Configuration des VIPs
  */
 const VIP_CONFIG = {
-    1: { 
+    1: {
         nom: "Msc-meraviglia",
-        dailyRevenue: 400, 
-        cycleDuration: 35, 
-        totalRevenue: 14000, 
-        price: 10000, 
+        dailyRevenue: 400,
+        cycleDuration: 365,
+        totalRevenue: 146000,
+        price: 10000,
         limit: 1,
         image: "https://image.noelshack.com/fichiers/2025/13/7/1743294919-img-20250328-wa0034.jpg"
     },
-    2: { 
+    2: {
         nom: "Msc-meraviglia",
-        dailyRevenue: 780, 
-        cycleDuration: 40, 
-        totalRevenue: 31200, 
-        price: 25000, 
-        limit: 2,
+        dailyRevenue: 780,
+        cycleDuration: 365,
+        totalRevenue: 284700,
+        price: 25000,
+        limit: 1,
         image: "https://image.noelshack.com/fichiers/2025/13/7/1743358689-msc-world-europa-mainden-cruise-news.jpg"
     },
-    3: { 
+    3: {
         nom: "Msc-meraviglia",
-        dailyRevenue: 1460, 
-        cycleDuration: 46, 
-        totalRevenue: 67160, 
-        price: 50000, 
-        limit: 2,
+        dailyRevenue: 1460,
+        cycleDuration: 365,
+        totalRevenue: 532900,
+        price: 50000,
+        limit: 1,
         image: "https://image.noelshack.com/fichiers/2025/13/7/1743359205-msc-world-europa-1170x772.jpg"
     },
-    4: { 
+    4: {
         nom: "Msc-meraviglia",
-        dailyRevenue: 3200, 
-        cycleDuration: 48, 
-        totalRevenue: 153600, 
-        price: 100000, 
-        limit: 2,
+        dailyRevenue: 3200,
+        cycleDuration: 365,
+        totalRevenue: 1168000,
+        price: 100000,
+        limit: 1,
         image: "https://image.noelshack.com/fichiers/2025/13/7/1743359580-img-9918.jpeg"
     },
-    5: { 
+    5: {
         nom: "Msc-meraviglia",
-        dailyRevenue: 5800, 
-        cycleDuration: 50, 
-        totalRevenue: 290000, 
-        price: 200000, 
-        limit: 2,
+        dailyRevenue: 5800,
+        cycleDuration: 365,
+        totalRevenue: 2117000,
+        price: 200000,
+        limit: 1,
         image: "https://image.noelshack.com/fichiers/2025/13/7/1743360080-msc-world-europa-msc-cruises-18910681.jpg"
     },
-    6: { 
+    6: {
         nom: "Msc-meraviglia",
-        dailyRevenue: 13600, 
-        cycleDuration: 55, 
-        totalRevenue: 748000, 
-        price: 500000, 
-        limit: 4,
+        dailyRevenue: 13600,
+        cycleDuration: 365,
+        totalRevenue: 4923200,
+        price: 500000,
+        limit: 1,
         image: "https://image.noelshack.com/fichiers/2025/13/7/1743360479-13-4c1e146a6be84.jpg"
     },
-    7: { 
+    7: {
         nom: "Msc-bugatti",
-        dailyRevenue: 25000, 
-        cycleDuration: 62, 
-        totalRevenue: 1550000, 
-        price: 1000000, 
-        limit: 4,
+        dailyRevenue: 25000,
+        cycleDuration: 365,
+        totalRevenue: 9125000,
+        price: 1000000,
+        limit: 1,
         image: "https://image.noelshack.com/fichiers/2025/13/7/1743360963-img-20250329-wa0021.jpg"
     }
-};
+};    
 
 /**
  * Configuration Firebase
