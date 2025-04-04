@@ -311,8 +311,14 @@ body {
         <div class="stats-container">
             <div class="stat-card">
                 <div class="stat-title">Total d'équipe</div>
+                <div class="stat-value" id="teamLevel">0</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-title">Total d'équipe</div>
                 <div class="stat-value" id="teamCount">0</div>
             </div>
+            
             <div class="stat-card">
                 <div class="stat-title">Bonus de l'équipe</div>
                 <div class="stat-value" id="totalBonus">0 FCFA</div>
@@ -375,8 +381,8 @@ body {
     </div>
 
     <!-- Firebase Scripts -->
-    <script type="module">
-// Import des modules Firebase nécessaires
+<script type="module">
+    // Import des modules Firebase nécessaires
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js";
 import { getDatabase, ref, get, set, onValue, query, orderByChild, equalTo, update, runTransaction } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js";
@@ -393,278 +399,687 @@ const firebaseConfig = {
     appId: "1:720174612151:web:d7af687cce1cf33dde1732"
 };
 
+// Initialisation Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const database = getDatabase(app);
+
+// State Management
+let currentUser = null;
+let teamMembers = [];
+let totalTeamBonus = 0;
+
+// UI Elements - déclaration globale pour accès facile
+let elements = {};
+
+// Fonction d'initialisation des éléments UI avec vérification
+const initUIElements = () => {
+    console.log("Initialisation des éléments UI");
+    
+    // Récupération de tous les éléments nécessaires 
+    elements = {
+        showTeamButton: document.getElementById('showTeamButton'),
+        closeTeamModalBtn: document.getElementById('closeTeamModalBtn'),
+        copyReferralCodeBtn: document.getElementById('copyReferralCodeBtn'),
+        copyReferralLinkBtn: document.getElementById('copyReferralLinkBtn'),
+        teamModal: document.getElementById('teamModal'),
+        teamMembersContainer: document.getElementById('teamMembersContainer'),
+        referralCode: document.getElementById('referralCode'),
+        referralLink: document.getElementById('referralLink'),
+        teamCount: document.getElementById('teamCount'),
+        teamLevel: document.getElementById('teamLevel'),
+        totalBonus: document.getElementById('totalBonus')
+    };
+
+    // Vérification détaillée avec sortie console pour debugging
+    const missingElements = [];
+    for (const [key, element] of Object.entries(elements)) {
+        if (!element) {
+         ;
+        }
+    }
+    
+    if (missingElements.length > 0) {
+        console.warn("Éléments UI manquants:", missingElements);
+    } else {
+        console.log("Tous les éléments UI sont correctement initialisés");
+    }
+
+    return elements;
+};
+
+// Utility Functions
+const utils = {
+    formatCurrency: (amount) => {
+        if (typeof amount !== 'number') {
+            console.warn("Tentative de formatage d'un montant non numérique:", amount);
+            amount = Number(amount) || 0;
+        }
+        return amount.toLocaleString('fr-FR', { 
+            minimumFractionDigits: 0, 
+            maximumFractionDigits: 0 
+        }) + ' FCFA';
+    },
+
+    formatDate: (dateString) => {
+        if (!dateString) return 'Date inconnue';
         
-         // Initialisation Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const database = getDatabase(app);
+        try {
+            return new Date(dateString).toLocaleDateString('fr-FR', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        } catch (error) {
+            console.error("Erreur de formatage de date:", error);
+            return 'Date invalide';
+        }
+    },
 
-
-        // State Management
-        let currentUser = null;
-        let teamMembers = [];
-        let totalTeamBonus = 0;
-
-        // UI Elements
-        const elements = {
-            showTeamButton: document.getElementById('showTeamButton'),
-            closeTeamModalBtn: document.getElementById('closeTeamModalBtn'),
-            copyReferralCodeBtn: document.getElementById('copyReferralCodeBtn'),
-            copyReferralLinkBtn: document.getElementById('copyReferralLinkBtn'),
-            teamModal: document.getElementById('teamModal'),
-            teamMembersContainer: document.getElementById('teamMembersContainer')
-        };
-
-        // Utility Functions
-        const utils = {
-            formatCurrency: (amount) => {
-                return amount.toLocaleString('fr-FR', { 
-                    minimumFractionDigits: 0, 
-                    maximumFractionDigits: 0 
-                }) + ' FCFA';
-            },
-
-            formatDate: (dateString) => {
-                return new Date(dateString).toLocaleDateString('fr-FR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-            },
-
-            copyToClipboard: async (elementId) => {
-                try {
-                    const element = document.getElementById(elementId);
-                    await navigator.clipboard.writeText(element.value);
-                    alert('Copié !');
-                } catch (err) {
-                    console.error('Erreur de copie:', err);
-                }
+    copyToClipboard: async (elementId) => {
+        try {
+            const element = document.getElementById(elementId);
+            if (!element) {
+                console.error(`Élément '${elementId}' introuvable pour la copie`);
+                return;
             }
-        };
+            
+            await navigator.clipboard.writeText(element.value);
+            alert('Copié !');
+        } catch (err) {
+            console.error('Erreur de copie:', err);
+            alert('Erreur lors de la copie. Veuillez réessayer.');
+        }
+    },
 
-        // UI Update Functions
-        const updateUI = {
-            teamStats: (members) => {
-                document.getElementById('teamCount').textContent = members.length;
-                document.getElementById('teamLevel').textContent = 
-                    Math.floor(members.length / 5) + 1;
+    logDebug: (message, data) => {
+        console.log(`[DEBUG] ${message}`, data !== null ? data : '');
+    }
+};
 
-                if (currentUser) {
-                    const userRef = ref(database, `users/${currentUser.uid}`);
-                    onValue(userRef, (snapshot) => {
-                        const userData = snapshot.val();
-                        totalTeamBonus = userData.totalReferralBonus || 0;
-                        document.getElementById('totalBonus').textContent = 
-                            utils.formatCurrency(totalTeamBonus);
-                    });
-                }
-            },
+// UI Update Functions avec vérifications améliorées
+const updateUI = {
+    // Mise à jour des statistiques d'équipe avec meilleure gestion des erreurs
+    teamStats: (members) => {
+        try {
+            if (!elements.teamCount || !elements.teamLevel) {
+                console.warn("Éléments UI manquants pour les stats d'équipe");
+                return;
+            }
+            
+            const count = Array.isArray(members) ? members.length : 0;
+            
+            // MODIFICATION: Afficher le nombre de membres dans teamLevel au lieu du niveau
+            elements.teamCount.textContent = count;
+            elements.teamLevel.textContent = count; // On affiche le nombre de membres ici aussi
+            
+            console.log("Stats d'équipe mises à jour:", { count });
+        } catch (error) {
+            console.error("Erreur lors de la mise à jour des stats d'équipe:", error);
+        }
+    },
 
-            teamMembers: (members) => {
-                if (members.length === 0) {
-                    elements.teamMembersContainer.innerHTML = `
-                        <div class="no-team-message">
-                            Aucun membre dans votre équipe
-                        </div>`;
+    // Fonction dédiée pour mettre à jour le bonus total avec vérification rigoureuse
+    updateTotalBonus: (amount) => {
+        try {
+            if (!elements.totalBonus) {
+                console.warn("Élément totalBonus non disponible pour mise à jour");
+                
+                // Nouvelle tentative de récupérer l'élément
+                elements.totalBonus = document.getElementById('totalBonus');
+                
+                if (!elements.totalBonus) {
+                    console.error("Impossible de trouver l'élément totalBonus même après nouvelle tentative");
                     return;
                 }
+            }
+            
+            // S'assurer que le montant est un nombre
+            const numericAmount = typeof amount === 'number' ? amount : Number(amount) || 0;
+            
+            // Mise à jour avec formatage
+            elements.totalBonus.textContent = utils.formatCurrency(numericAmount);
+            console.log("Bonus total mis à jour:", numericAmount);
+        } catch (error) {
+            console.error("Erreur lors de la mise à jour du bonus total:", error);
+        }
+    },
 
-                elements.teamMembersContainer.innerHTML = members.map(member => `
-                    <div class="worker-item">
-                        <div class="worker-info">
-                            <div class="worker-avatar">
-                                ${member.username.charAt(0).toUpperCase()}
-                            </div>
-                            <div class="worker-details">
-                                <div class="worker-name">${member.username}</div>
-                                <div class="worker-date">
-                                    Rejoint le ${utils.formatDate(member.createdAt)}
-                                </div>
-                            </div>
+    // Mise à jour des membres d'équipe avec meilleure gestion des erreurs
+    teamMembers: (members) => {
+        try {
+            if (!elements.teamMembersContainer) {
+                console.warn("Container des membres d'équipe manquant");
+                return;
+            }
+            
+            if (!Array.isArray(members) || members.length === 0) {
+                elements.teamMembersContainer.innerHTML = `
+                    <div class="no-team-message">
+                        Aucun membre dans votre équipe
+                    </div>`;
+                return;
+            }
+            
+            console.log("Mise à jour des membres d'équipe:", members.length);
+            
+            elements.teamMembersContainer.innerHTML = members.map(member => `
+                <div class="worker-item">
+                    <div class="worker-info">
+                        <div class="worker-avatar">
+                            ${member.username ? member.username.charAt(0).toUpperCase() : '?'}
                         </div>
-                        <div class="worker-stats">
-                            <div class="worker-stat">
-                                <div class="stat-label">Total investi</div>
-                                <div class="stat-amount">${utils.formatCurrency(member.totalInvestments || 0)}</div>
-                            </div>
-                            <div class="worker-stat">
-                                <div class="stat-label">Bonus généré</div>
-                                <div class="stat-amount">${utils.formatCurrency(member.totalBonusGenerated || 0)}</div>
+                        <div class="worker-details">
+                            <div class="worker-name">${member.username || 'Utilisateur'}</div>
+                            <div class="worker-date">
+                                Rejoint le ${utils.formatDate(member.createdAt)}
                             </div>
                         </div>
                     </div>
-                `).join('');
+                    <div class="worker-stats">
+                        <div class="worker-stat">
+                            <div class="stat-label">Total investi</div>
+                            <div class="stat-amount">${utils.formatCurrency(member.totalInvestments || 0)}</div>
+                        </div>
+                        <div class="worker-stat">
+                            <div class="stat-label">Bonus généré</div>
+                            <div class="stat-amount">${utils.formatCurrency(member.totalBonusGenerated || 0)}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error("Erreur lors de la mise à jour de l'affichage des membres:", error);
+        }
+    },
+
+    // Mise à jour des informations de parrainage
+    referralInfo: (userData) => {
+        try {
+            if (!elements.referralCode || !elements.referralLink) {
+                console.warn("Éléments UI de parrainage manquants");
+                return;
             }
-        };
-
-        // Process Referral Bonus for New Investment
-        const processReferralBonus = async (investmentAmount, memberUid, referrerUid) => {
-            try {
-                const referrerRef = ref(database, 'users/' + referrerUid);
-                const memberRef = ref(database, 'users/' + memberUid);
-                const bonusAmount = investmentAmount * 0.10; // 10% de l'investissement
-
-                if (bonusAmount > 0) {
-                    // Mise à jour du solde du parrain
-                    await runTransaction(referrerRef, (currentData) => {
-                        if (!currentData) return currentData;
-                        return {
-                            ...currentData,
-                            balance: (currentData.balance || 0) + bonusAmount,
-                            totalReferralBonus: (currentData.totalReferralBonus || 0) + bonusAmount
-                        };
-                    });
-
-                    // Mise à jour des stats du filleul
-                    await runTransaction(memberRef, (currentData) => {
-                        if (!currentData) return currentData;
-                        return {
-                            ...currentData,
-                            totalBonusGenerated: (currentData.totalBonusGenerated || 0) + bonusAmount,
-                            totalInvestments: (currentData.totalInvestments || 0) + investmentAmount
-                        };
-                    });
-
-                    // Log du bonus
-                    const bonusLogRef = ref(database, `bonusLogs/${referrerUid}`);
-                    await update(bonusLogRef, {
-                        [`bonus_${Date.now()}`]: {
-                            amount: bonusAmount,
-                            memberId: memberUid,
-                            investmentAmount: investmentAmount,
-                            timestamp: new Date().toISOString()
-                        }
-                    });
-
-                    // Notification
-                    const notificationRef = ref(database, `notifications/${referrerUid}`);
-                    await update(notificationRef, {
-                        [`notif_${Date.now()}`]: {
-                            type: 'referral_bonus',
-                            message: `Vous avez reçu un bonus de parrainage de ${utils.formatCurrency(bonusAmount)}`,
-                            amount: bonusAmount,
-                            memberId: memberUid,
-                            timestamp: new Date().toISOString(),
-                            read: false
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('Erreur lors du traitement du bonus:', error);
-            }
-        };
-
-        // Listen for New Investments
-        const listenForNewInvestments = (userId) => {
-            const investmentsRef = ref(database, 'investments');
-            const userInvestmentsQuery = query(
-                investmentsRef,
-                orderByChild('userId'),
-                equalTo(userId)
-            );
-
-            onValue(userInvestmentsQuery, (snapshot) => {
-                if (snapshot.exists()) {
-                    snapshot.forEach((investmentSnapshot) => {
-                        const investment = investmentSnapshot.val();
-                        if (!investment.bonusProcessed) {
-                            const userRef = ref(database, `users/${userId}`);
-                            onValue(userRef, (userSnapshot) => {
-                                const userData = userSnapshot.val();
-                                if (userData.referredBy) {
-                                    processReferralBonus(
-                                        investment.amount,
-                                        userId,
-                                        userData.referredBy
-                                    );
-                                    // Marquer comme traité
-                                    update(ref(database, `investments/${investmentSnapshot.key}`), {
-                                        bonusProcessed: true
-                                    });
-                                }
-                            }, { onlyOnce: true });
-                        }
-                    });
-                }
-            });
-        };
-
-        // Event Listeners Setup
-        const setupEventListeners = () => {
-            elements.showTeamButton?.addEventListener('click', () => {
-                elements.teamModal.classList.remove('hidden');
-            });
-
-            elements.closeTeamModalBtn?.addEventListener('click', () => {
-                elements.teamModal.classList.add('hidden');
-            });
-
-            elements.copyReferralCodeBtn?.addEventListener('click', () => 
-                utils.copyToClipboard('referralCode'));
             
-            elements.copyReferralLinkBtn?.addEventListener('click', () => 
-                utils.copyToClipboard('referralLink'));
+            if (!userData || !userData.referralCode) {
+                console.warn("Code de parrainage manquant dans les données utilisateur");
+                return;
+            }
+            
+            elements.referralCode.value = userData.referralCode;
+            elements.referralLink.value = `${window.location.origin}/index.html?ref=${userData.referralCode}`;
+            
+            console.log("Infos de parrainage mises à jour:", userData.referralCode);
+        } catch (error) {
+            console.error("Erreur lors de la mise à jour des infos de parrainage:", error);
+        }
+    },
+    
+    // Initialisation des stats par défaut avec vérifications
+    initializeDefaultStats: () => {
+        try {
+            // Vérifier chaque élément avant de tenter la mise à jour
+            if (elements.teamCount) elements.teamCount.textContent = "0";
+            if (elements.teamLevel) elements.teamLevel.textContent = "0"; // Modifié pour afficher 0 membres
+            if (elements.totalBonus) elements.totalBonus.textContent = utils.formatCurrency(0);
+            
+            console.log("Stats par défaut initialisées");
+        } catch (error) {
+            console.error("Erreur lors de l'initialisation des stats par défaut:", error);
+        }
+    }
+};
 
-            // Fermer la modal en cliquant en dehors
-            elements.teamModal?.addEventListener('click', (e) => {
-                if (e.target === elements.teamModal) {
-                    elements.teamModal.classList.add('hidden');
+// Process Referral Bonus for New Investment avec meilleure gestion des erreurs
+const processReferralBonus = async (investmentAmount, memberUid, referrerUid) => {
+    if (!investmentAmount || !memberUid || !referrerUid) {
+        console.error("Paramètres manquants pour le traitement du bonus", { 
+            investmentAmount, memberUid, referrerUid 
+        });
+        return false;
+    }
+
+    try {
+        console.log("Traitement du bonus de parrainage", { 
+            investmentAmount, memberUid, referrerUid 
+        });
+
+        const referrerRef = ref(database, 'users/' + referrerUid);
+        const memberRef = ref(database, 'users/' + memberUid);
+        const bonusAmount = investmentAmount * 0.10; // 10% de l'investissement
+
+        if (bonusAmount <= 0) {
+            console.warn("Montant de bonus nul ou négatif", { bonusAmount });
+            return false;
+        }
+
+        // Mise à jour du solde du parrain
+        await runTransaction(referrerRef, (currentData) => {
+            if (!currentData) {
+                console.warn("Données du parrain introuvables", { referrerUid });
+                return currentData;
+            }
+            
+            const updatedData = {
+                ...currentData,
+                balance: (currentData.balance || 0) + bonusAmount,
+                totalReferralBonus: (currentData.totalReferralBonus || 0) + bonusAmount
+            };
+            
+            console.log("Mise à jour du solde du parrain", { 
+                before: { 
+                    balance: currentData.balance || 0, 
+                    totalReferralBonus: currentData.totalReferralBonus || 0 
+                },
+                after: { 
+                    balance: updatedData.balance, 
+                    totalReferralBonus: updatedData.totalReferralBonus 
                 }
             });
-        };
+            
+            return updatedData;
+        });
 
-        // Start Application
-        const startApp = () => {
-            setupEventListeners();
+        // Mise à jour des stats du filleul
+        await runTransaction(memberRef, (currentData) => {
+            if (!currentData) {
+                console.warn("Données du filleul introuvables", { memberUid });
+                return currentData;
+            }
+            
+            const updatedData = {
+                ...currentData,
+                totalBonusGenerated: (currentData.totalBonusGenerated || 0) + bonusAmount,
+                totalInvestments: (currentData.totalInvestments || 0) + investmentAmount
+            };
+            
+            console.log("Mise à jour des stats du filleul", { 
+                before: { 
+                    totalBonusGenerated: currentData.totalBonusGenerated || 0, 
+                    totalInvestments: currentData.totalInvestments || 0 
+                },
+                after: { 
+                    totalBonusGenerated: updatedData.totalBonusGenerated, 
+                    totalInvestments: updatedData.totalInvestments 
+                }
+            });
+            
+            return updatedData;
+        });
 
-            onAuthStateChanged(auth, (user) => {
-                if (!user) {
-                    window.location.href = 'index.html';
+        // Log du bonus
+        const bonusLogId = `bonus_${Date.now()}`;
+        const bonusLogRef = ref(database, `bonusLogs/${referrerUid}/${bonusLogId}`);
+        await set(bonusLogRef, {
+            amount: bonusAmount,
+            memberId: memberUid,
+            investmentAmount: investmentAmount,
+            timestamp: new Date().toISOString()
+        });
+
+        console.log("Bonus enregistré", { bonusLogId });
+
+        // Notification
+        const notificationId = `notif_${Date.now()}`;
+        const notificationRef = ref(database, `notifications/${referrerUid}/${notificationId}`);
+        await set(notificationRef, {
+            type: 'referral_bonus',
+            message: `Vous avez reçu un bonus de parrainage de ${utils.formatCurrency(bonusAmount)}`,
+            amount: bonusAmount,
+            memberId: memberUid,
+            timestamp: new Date().toISOString(),
+            read: false
+        });
+
+        console.log("Notification envoyée", { notificationId });
+        
+        return true;
+    } catch (error) {
+        console.error('Erreur lors du traitement du bonus:', error);
+        return false;
+    }
+};
+
+// Listen for New Investments avec gestion d'erreurs améliorée
+const listenForNewInvestments = (userId) => {
+    if (!userId) {
+        console.error("ID utilisateur manquant pour l'écoute des investissements");
+        return;
+    }
+
+    console.log("Écoute des nouveaux investissements pour", { userId });
+    
+    const investmentsRef = ref(database, 'investments');
+    const userInvestmentsQuery = query(
+        investmentsRef,
+        orderByChild('userId'),
+        equalTo(userId)
+    );
+
+    onValue(userInvestmentsQuery, (snapshot) => {
+        if (snapshot.exists()) {
+            console.log(`${snapshot.size} investissements trouvés pour l'utilisateur`, { userId });
+            
+            snapshot.forEach((investmentSnapshot) => {
+                const investment = investmentSnapshot.val();
+                const investmentId = investmentSnapshot.key;
+                
+                if (!investment) {
+                    console.warn("Données d'investissement invalides", { investmentId });
                     return;
                 }
-
-                currentUser = user;
                 
-                // Listen for user data changes
-                const userRef = ref(database, 'users/' + user.uid);
-                onValue(userRef, (snapshot) => {
-                    const userData = snapshot.val();
-                    if (userData?.referralCode) {
-                        document.getElementById('referralCode').value = userData.referralCode;
-                        document.getElementById('referralLink').value = 
-                            `${window.location.origin}/index.html?ref=${userData.referralCode}`;
-                    }
-                });
-
-                // Listen for team members
-                const teamQuery = query(
-                    ref(database, 'users'),
-                    orderByChild('referredBy'),
-                    equalTo(user.uid)
-                );
-
-                onValue(teamQuery, (snapshot) => {
-                    teamMembers = [];
-                    if (snapshot.exists()) {
-                        snapshot.forEach((memberSnapshot) => {
-                            const memberData = {
-                               ...memberSnapshot.val(),
-                                uid: memberSnapshot.key
-                            };
-                            teamMembers.push(memberData);
-                            // Écouter les investissements
-                            listenForNewInvestments(memberData.uid);
-                        });
-                    }
-                    updateUI.teamStats(teamMembers);
-                    updateUI.teamMembers(teamMembers);
-                });
+                console.log("Investissement trouvé", { investmentId });
+                
+                if (!investment.bonusProcessed) {
+                    console.log("Bonus non traité pour l'investissement", { investmentId });
+                    
+                    const userRef = ref(database, `users/${userId}`);
+                    get(userRef).then((userSnapshot) => {
+                        if (userSnapshot.exists()) {
+                            const userData = userSnapshot.val();
+                            
+                            if (userData.referredBy) {
+                                console.log("Utilisateur parrainé par", { referredBy: userData.referredBy });
+                                
+                                processReferralBonus(
+                                    investment.amount,
+                                    userId,
+                                    userData.referredBy
+                                ).then(success => {
+                                    if (success) {
+                                        // Marquer comme traité
+                                        update(ref(database, `investments/${investmentId}`), {
+                                            bonusProcessed: true
+                                        }).then(() => {
+                                            console.log("Investissement marqué comme traité", { investmentId });
+                                        }).catch(error => {
+                                            console.error("Erreur lors du marquage de l'investissement:", error);
+                                        });
+                                    }
+                                });
+                            } else {
+                                console.log("Utilisateur sans parrain", { userId });
+                                // Marquer comme traité puisqu'il n'y a pas de bonus à traiter
+                                update(ref(database, `investments/${investmentId}`), {
+                                    bonusProcessed: true
+                                }).catch(error => {
+                                    console.error("Erreur lors du marquage de l'investissement:", error);
+                                });
+                            }
+                        } else {
+                            console.warn("Données utilisateur introuvables", { userId });
+                        }
+                    }).catch(error => {
+                        console.error("Erreur lors de la récupération des données utilisateur:", error);
+                    });
+                } else {
+                    console.log("Bonus déjà traité pour l'investissement", { investmentId });
+                }
             });
-        };
+        } else {
+            console.log("Aucun investissement trouvé pour l'utilisateur", { userId });
+        }
+    }, (error) => {
+        console.error("Erreur lors de l'écoute des investissements:", error);
+    });
+};
 
-        // Start the application
+// Event Listeners Setup avec meilleure robustesse
+const setupEventListeners = () => {
+    console.log("Configuration des écouteurs d'événements");
+    
+    // Bouton d'affichage de l'équipe
+    if (elements.showTeamButton) {
+        elements.showTeamButton.addEventListener('click', () => {
+            if (elements.teamModal) {
+                elements.teamModal.classList.remove('hidden');
+                console.log("Modal d'équipe affichée");
+            } else {
+                console.warn("Modal d'équipe introuvable");
+            }
+        });
+    } else {
+        console.warn("Bouton d'affichage d'équipe manquant");
+    }
+
+    // Bouton de fermeture de la modal
+    if (elements.closeTeamModalBtn) {
+        elements.closeTeamModalBtn.addEventListener('click', () => {
+            if (elements.teamModal) {
+                elements.teamModal.classList.add('hidden');
+                console.log("Modal d'équipe cachée");
+            }
+        });
+    } else {
+        console.warn("Bouton de fermeture de modal manquant");
+    }
+
+    // Bouton de copie du code de parrainage
+    if (elements.copyReferralCodeBtn && elements.referralCode) {
+        elements.copyReferralCodeBtn.addEventListener('click', () => {
+            utils.copyToClipboard('referralCode');
+            console.log("Code de parrainage copié");
+        });
+    } else {
+        console.warn("Éléments de copie de code manquants");
+    }
+    
+    // Bouton de copie du lien de parrainage
+    if (elements.copyReferralLinkBtn && elements.referralLink) {
+        elements.copyReferralLinkBtn.addEventListener('click', () => {
+            utils.copyToClipboard('referralLink');
+            console.log("Lien de parrainage copié");
+        });
+    } else {
+        console.warn("Éléments de copie de lien manquants");
+    }
+
+    // Fermer la modal en cliquant en dehors
+    if (elements.teamModal) {
+        elements.teamModal.addEventListener('click', (e) => {
+            if (e.target === elements.teamModal) {
+                elements.teamModal.classList.add('hidden');
+                console.log("Modal d'équipe fermée par clic externe");
+            }
+        });
+    } else {
+        console.warn("Modal d'équipe manquante pour l'événement de clic externe");
+    }
+};
+
+// Vérifier et créer un code de parrainage si nécessaire
+const ensureReferralCode = async (userId) => {
+    if (!userId) {
+        console.error("ID utilisateur manquant pour la vérification du code de parrainage");
+        return null;
+    }
+
+    try {
+        const userRef = ref(database, `users/${userId}`);
+        const userSnapshot = await get(userRef);
+        
+        if (userSnapshot.exists()) {
+            const userData = userSnapshot.val();
+            
+            if (!userData.referralCode) {
+                // Générer un code aléatoire
+                const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                await update(userRef, { referralCode: randomCode });
+                console.log("Nouveau code de parrainage généré", { userId, referralCode: randomCode });
+                
+                return randomCode;
+            }
+            
+            console.log("Code de parrainage existant", { referralCode: userData.referralCode });
+            return userData.referralCode;
+        }
+        
+        console.warn("Utilisateur introuvable pour la génération du code de parrainage", { userId });
+        return null;
+    } catch (error) {
+        console.error("Erreur lors de la vérification du code de parrainage:", error);
+        return null;
+    }
+};
+
+// Calcul du bonus total de l'équipe (nouvelle fonction)
+const calculateTotalTeamBonus = (members) => {
+    try {
+        if (!Array.isArray(members) || members.length === 0) {
+            return 0;
+        }
+        
+        // Calculer la somme des bonus générés par les membres de l'équipe
+        const total = members.reduce((sum, member) => {
+            return sum + (Number(member.totalBonusGenerated) || 0);
+        }, 0);
+        
+        console.log("Calcul du bonus total d'équipe:", total);
+        return total;
+    } catch (error) {
+        console.error("Erreur lors du calcul du bonus total:", error);
+        return 0;
+    }
+};
+
+// Start Application avec meilleure structure
+const startApp = () => {
+    console.log("Démarrage de l'application");
+    
+    // Initialiser les éléments UI
+    initUIElements();
+    
+    // Configurer les écouteurs d'événements
+    setupEventListeners();
+    
+    // Initialiser les statistiques par défaut
+    updateUI.initializeDefaultStats();
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            console.log("Utilisateur non connecté, redirection vers la page d'accueil");
+            window.location.href = 'index.html';
+            return;
+        }
+
+        console.log("Utilisateur connecté", { uid: user.uid, email: user.email });
+        currentUser = user;
+        
+        try {
+            // Assurer que l'utilisateur a un code de parrainage
+            await ensureReferralCode(user.uid);
+            
+            // Listen for user data changes
+            const userRef = ref(database, 'users/' + user.uid);
+            onValue(userRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const userData = snapshot.val();
+                    console.log("Données utilisateur récupérées");
+                    
+                    // Mise à jour des informations de parrainage
+                    updateUI.referralInfo(userData);
+                    
+                    // CORRECTION: Mise à jour plus robuste du bonus total
+                    if (userData.totalReferralBonus !== undefined) {
+                        totalTeamBonus = Number(userData.totalReferralBonus) || 0;
+                        
+                        // Force la mise à jour de l'élément UI même si on est pas sûr qu'il existe
+                        const bonusElement = document.getElementById('totalBonus');
+                        if (bonusElement) {
+                            bonusElement.textContent = utils.formatCurrency(totalTeamBonus);
+                            console.log("Bonus total mis à jour via élément direct:", totalTeamBonus);
+                        }
+                        
+                        // Utiliser également la fonction standard
+                        updateUI.updateTotalBonus(totalTeamBonus);
+                    } else {
+                        console.warn("Aucun bonus trouvé dans les données utilisateur");
+                        // Mettre à jour avec 0 comme valeur par défaut
+                        updateUI.updateTotalBonus(0);
+                    }
+                } else {
+                    console.warn("Données utilisateur introuvables", { uid: user.uid });
+                    updateUI.updateTotalBonus(0);
+                }
+            }, (error) => {
+                console.error("Erreur lors de la récupération des données utilisateur:", error);
+                updateUI.updateTotalBonus(0);
+            });
+
+            // Listen for team members avec meilleure gestion d'erreurs
+            const teamQuery = query(
+                ref(database, 'users'),
+                orderByChild('referredBy'),
+                equalTo(user.uid)
+            );
+
+            onValue(teamQuery, (snapshot) => {
+                teamMembers = [];
+                
+                if (snapshot.exists()) {
+                    console.log(`${snapshot.size} membres d'équipe trouvés`);
+                    
+                    snapshot.forEach((memberSnapshot) => {
+                        const memberData = {
+                            ...memberSnapshot.val(),
+                            uid: memberSnapshot.key
+                        };
+                        
+                        teamMembers.push(memberData);
+                        
+                        // Écouter les investissements
+                        listenForNewInvestments(memberData.uid);
+                    });
+                } else {
+                    console.log("Aucun membre d'équipe trouvé");
+                }
+                
+                // Recalculer les bonus si nécessaire (méthode alternative)
+                const calculatedTeamBonus = calculateTotalTeamBonus(teamMembers);
+                if (calculatedTeamBonus > 0 && calculatedTeamBonus !== totalTeamBonus) {
+                    console.log("Mise à jour du bonus depuis le calcul d'équipe", calculatedTeamBonus);
+                    totalTeamBonus = calculatedTeamBonus;
+                }
+                
+                // Réinitialiser les éléments UI (double vérification)
+                initUIElements();
+                
+                // Mise à jour de l'interface utilisateur
+                updateUI.teamStats(teamMembers);
+                updateUI.teamMembers(teamMembers);
+                
+                // CORRECTION CRUCIALE: Forcer la mise à jour du bonus APRÈS les autres mises à jour UI
+                // en utilisant à la fois la méthode standard et une approche directe
+                updateUI.updateTotalBonus(totalTeamBonus);
+                
+                // Approche directe en backup
+                const bonusElement = document.getElementById('totalBonus');
+                if (bonusElement) {
+                    bonusElement.textContent = utils.formatCurrency(totalTeamBonus);
+                    console.log("Bonus total mis à jour en dernier recours:", totalTeamBonus);
+                }
+            }, (error) => {
+                console.error("Erreur lors de la récupération des membres d'équipe:", error);
+                updateUI.teamMembers([]);
+                updateUI.teamStats([]);
+                updateUI.updateTotalBonus(0);
+            });
+        } catch (error) {
+            console.error("Erreur globale dans l'application:", error);
+        }
+    });
+};
+
+// Start the application avec gestion d'erreur
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM chargé, initialisation de l'application");
+    try {
         startApp();
+    } catch (error) {
+        console.error("Erreur critique lors du démarrage de l'application:", error);
+    }
+});
     </script>
 </body>
 </html>
