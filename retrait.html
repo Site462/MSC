@@ -325,7 +325,7 @@
     const database = getDatabase(app);
 
     // Variables globales
-    const MIN_WITHDRAWAL = 1500;
+    const MIN_WITHDRAWAL = 980;
     const MAX_WITHDRAWAL = 850000;
     let currentBalance = 0;
     let currentUser = null;
@@ -416,7 +416,7 @@
             return;
         }
 
-        const fees = Math.round(amount * 0.10);
+        const fees = Math.round(amount * 0.1);
         const totalAmount = amount - fees;
         const newBalance = currentBalance - amount;
 
@@ -470,7 +470,7 @@
         }
 
         if (amount > 0) {
-            const fees = Math.round(amount * 0.10);
+            const fees = Math.round(amount * 0.1);
             const totalAmount = amount - fees;
 
             document.getElementById('requested-amount').textContent = formatAmount(amount);
